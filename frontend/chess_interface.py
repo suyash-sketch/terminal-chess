@@ -1,6 +1,6 @@
 
 from textual.app import App, ComposeResult
-from textual.containers import Grid, Horizontal, HorizontalGroup
+from textual.containers import Grid, Horizontal, HorizontalGroup, Vertical
 from textual.message import Message
 from textual import on
 from textual.widgets import Header, Footer, Button, Static
@@ -10,6 +10,16 @@ import websockets
 import json
 
 WS_URL = "ws://localhost:8000/ws"
+
+class GameStartedMessage(Message):
+    def __init__(self, color : str):
+        self.color = color
+        super().__init__()
+
+class GameOverMessage(Message):
+    def __init__(self, winner : str):
+        self.winner = winner
+        super().__init__()
 
 class Square(Static):
     
@@ -37,7 +47,7 @@ class Square(Static):
     def refresh_piece(self):
         piece = self.board.piece_at(self.square_index)
         if piece:
-            piece_color = "#A6ACA5" if piece.color == chess.WHITE else "#4D4848"
+            piece_color = "#FFFFFF" if piece.color == chess.WHITE else "#000000"
 
             self.update(f"[{piece_color}]{piece.unicode_symbol()}[/]")
         else:
@@ -56,6 +66,46 @@ class Square(Static):
         # Draw the initial piece
         self.refresh_piece()
 
+class CapturedPanel(Static):
+    def __init__(self, title : str, team_color : chess.Color, id : str):
+        super().__init__(id=id)
+        self.title = title
+        self.team_color = team_color
+    
+    def update_panel(self, board : chess.Board):
+        starting_counts = {
+            chess.PAWN: 8,
+            chess.KNIGHT: 2,
+            chess.BISHOP: 2,
+            chess.ROOK: 2,
+            chess.QUEEN: 1,
+            chess.KING: 1
+        }
+
+        captured_pieces = []
+
+        # compare current board pieces to starting counts
+        for piece_type, start_count in starting_counts.items():
+            current_count = len(board.pieces(piece_type,self.team_color))
+
+            # calculate how many are missing
+            for _ in range(start_count - current_count):
+                captured_pieces.append(chess.Piece(piece_type, self.team_color))
+        
+
+        # Format the defeated pieces with your existing custom colors
+        piece_strs = []
+        for piece in captured_pieces:
+            piece_color = "#FFFFFF" if piece.color == chess.WHITE else "#000000"
+            piece_strs.append(f"[{piece_color}]{piece.unicode_symbol()}[/]")
+
+        # Wrap text so it stacks nicely
+        captured_text = " ".join(piece_strs)
+        self.update(f"[b]{self.title}[/b]\n\n{captured_text}")
+    
+    def on_mount(self):
+        self.update(f"[b]{self.title}[/b]\n\n")
+
 
 class ChessBoard(Grid):
     def __init__(self):
@@ -64,14 +114,36 @@ class ChessBoard(Grid):
         self.selected_square = None
         self.legal_moves = []
         self.player_color = None
+    
+    def highlight_check(self):
+        """find if a king is in check and highlight the square"""
+
+        # clear previous check highlights
+        for square in self.query(Square):
+            square.remove_class("-in-check")
         
+        if self.board.is_check():
+            king_square = self.board.king(self.board.turn)
+
+            # find the specific square widget and add css
+            for square in self.query(Square):
+                if square.square_index == king_square:
+                    square.add_class("-in-check")
+
     def apply_move(self,move_uci):
         move = chess.Move.from_uci(move_uci)
         self.board.push(move)
         
         for square in self.query(Square):
             square.refresh_piece()
-    
+        
+        # update captured panels after every move
+        self.app.query_one("#bottom_captured", CapturedPanel).update_panel(self.board)
+        self.app.query_one("#top_captured", CapturedPanel).update_panel(self.board)
+
+        # check hightlight after every move
+        self.highlight_check()
+
     def on_square_clicked(self, message : Square.Clicked):
         square = message.square_index
         
@@ -97,11 +169,27 @@ class ChessBoard(Grid):
             ]
             
         else:
+            # Second click
             if square in self.legal_moves:
-                move = chess.Move(self.selected_square, square)
+                # 1. Check if the moving piece is a pawn
+                moving_piece = self.board.piece_at(self.selected_square)
+                is_promotion = False
+
+                if moving_piece and moving_piece.piece_type == chess.PAWN:
+                    # 2. Check if it is landing on the 1st rank (0) or 8th rank (7)
+                    if chess.square_rank(square) == 0 or chess.square_rank(square) == 7:
+                        is_promotion = True
+                
+                # 3. Create the move ( attach the Queen if its a promotion)
+                if is_promotion:
+                    move = chess.Move(self.selected_square, square, promotion=chess.QUEEN)
+                else:
+                    move = chess.Move(self.selected_square, square)
+                
+                # 4. Push the move to the board
                 self.apply_move(move.uci())
                 self.app.run_worker(self.app.send_move(move), exclusive=False)
-            
+
             # reset selection
             self.selected_square = None
             self.legal_moves = []
@@ -110,7 +198,22 @@ class ChessBoard(Grid):
             square_widget.update_style(self.selected_square, self.legal_moves)
         
             # square_widget.refresh_piece()
+    
+    def reset_board(self):
+        """Clear local state and redraw the starting pieces"""
+        self.board.reset()
+        self.selected_square = None
+        self.legal_moves = []
+        self.player_color = None
+
+        for square in self.query(Square):
+            square.update_style(None, [])
+            square.refresh_piece()
         
+        self.app.query_one("#top_captured", CapturedPanel).update_panel(self.board)
+        self.app.query_one("#bottom_captured", CapturedPanel).update_panel(self.board)
+
+        self.highlight_check()
     
     def compose(self) -> ComposeResult:
         for rank in range(7,-1,-1):
@@ -128,20 +231,35 @@ class ChessBoard(Grid):
             
         
         
-class ButtonHandler(HorizontalGroup):
+class ButtonHandler(Vertical):
     def on_button_pressed(self, event: Button.Pressed):
-        if event.button.id == "start":
-            self.add_class("started")
+        layout = self.app.query_one("#main_layout")
+
+
+        if event.button.id == "start" or event.button.id == "new_game":
+            layout.add_class("started")
+            layout.remove_class("game_over")
+
+            # update the text label
+            status = self.query_one("#status_label", Static)
+            status.update("Searching for opponent...")
+
+            # if they click on new game, reset the board pieces locally
+            if event.button.id == "new_game":
+                board = self.app.query_one(ChessBoard)
+                board.reset_board()
+
             self.app.run_worker(self.app.send_init(), exclusive=False)
+
         elif event.button.id == "resigned":
-            self.remove_class("started")
-            self.app.log("You resigned!")
-            # You can also send a message to the server if needed
-            # self.app.run_worker(self.app.send_resign(), exclusive=False)
+            layout.remove_class("started")
+            self.app.run_worker(self.app.send_resign(), exclusive=False)
             
     def compose(self) -> ComposeResult:
+        yield Static("Welcome to Terminal Chess", id="status_label")
         yield Button("Start Game", id="start", variant="success")
         yield Button("Resign", id="resigned", variant='error')
+        yield Button("New Game", id="new_game", variant="primary")
 
 
 class OpponentMove(Message):
@@ -180,6 +298,11 @@ class ChessApp(App):
             "winner": winner
         }))
 
+    async def send_resign(self):
+        await self.ws.send(json.dumps({
+            "type" : "resign"
+        }))
+
     async def listen(self):
         while True:
             data = await self.ws.recv()
@@ -192,18 +315,35 @@ class ChessApp(App):
         
         if msg["type"] == "init_game":
             board.player_color = msg["color"]
-            self.log("Game Started you are", msg["color"])
+            # self.log("Game Started you are", msg["color"])
+            self.post_message(GameStartedMessage(msg["color"]))
         
         elif msg["type"] == "move":
           self.post_message(OpponentMove(msg["move"]))
           
         elif msg["type"] == "game_over":
-            self.log("Winner:", msg["winner"])
+            self.post_message(GameOverMessage(msg["winner"]))
             
     @on(OpponentMove)
     def update_board(self, event : OpponentMove):
         board = self.query_one(ChessBoard)
         board.apply_move(event.move_uci)
+
+    @on(GameStartedMessage)
+    def on_game_start(self, event : GameStartedMessage):
+        status = self.query_one("#status_label", Static)
+        status.update(f"Game Started!, You are playing [b]{event.color}[/b]")
+
+    @on(GameOverMessage)
+    def on_game_over(self, event : GameOverMessage):
+        # announce the winner
+        status = self.query_one("#status_label", Static)
+        status.update(f"[b]Game Over![/b]\nWinner: {event.winner.capitalize()}")
+
+        layout = self.query_one("#main_layout")
+        layout.remove_class("started")
+        layout.add_class("game_over")
+
 
     def on_mount(self):
        self.run_worker(self.connect_ws(), exclusive=True)
@@ -213,8 +353,15 @@ class ChessApp(App):
         yield Header()
         yield Footer()
         yield Horizontal(
+            Vertical(
+            # added left panel (white pieces lost)
+            CapturedPanel("Captured by Black", chess.WHITE, id="top_captured"),
+            CapturedPanel("Captured by White", chess.BLACK, id="bottom_captured"),
+            id="left_panels"
+            ),
             ChessBoard(),
-            ButtonHandler()
+            ButtonHandler(),
+            id="main_layout"
         )
         
     def action_toggle_dark(self) -> None:

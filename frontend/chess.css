@@ -1,3 +1,37 @@
+/* 1. Center everything horizontally and vertically */
+#main_layout {
+    align: center middle;
+    height: 100%;
+}
+
+#left_panels,
+ChessBoard {
+    display: none; /* Hide the board and captured panels until the game starts */
+}
+
+/* Reveal container when game starts */
+#main_layout.started #left_panels,
+#main_layout.started ChessBoard,
+#main_layout.game_over #left_panels,
+#main_layout.game_over ChessBoard {
+    display: block;
+}
+
+#left_panels {
+    width: 25;
+    height: 100%;
+    content-align: center middle;
+    margin-right: 5;
+}
+
+CapturedPanel {
+    width: 100%;
+    height: auto;
+    min-height: 4;
+    content-align: center middle;
+    background: #8fa17d;
+    margin: 1 0;
+}
 
 ChessBoard {
     grid-size: 9 9;
@@ -7,6 +41,26 @@ ChessBoard {
     height: 27;
     grid-gutter: 0 0; 
 }
+
+
+#main_layout.started CapturedPanel,
+#main_layout.game_over CapturedPanel {
+    display: block; 
+}
+
+
+/* Constrain the right-side control panel */
+ButtonHandler {
+    width: 35;
+    align: center middle;
+}
+
+/* Only push the buttons to the right when the board is actively on the screen */
+#main_layout.started ButtonHandler,
+#main_layout.game_over ButtonHandler {
+    margin-left: 8; 
+}
+
 Square {
     width: 7;
     height: 3;
@@ -15,10 +69,9 @@ Square {
 }
    
 Square.-light{
-    background: #EEEED2;
+    background: #C4C4A7;
     /* color: black; */
 }
-
 
 Square.-dark{
     background: #769656;
@@ -32,18 +85,23 @@ Square.-legal {
     background: #a9a9a9;  /* or blue-ish */
 }
 
+Square.-in-check {
+    border: heavy red;
+    background: #ffcccc; /* Optional: adds a faint red tint to the background too! */
+}
+
 .label {
     width: 7;
     height: 3;
     content-align: center middle;
-
+    color: #aaaaaa;
 }
 
 Button {
-    margin-left: 10;
-    margin-top: 5;
-    width: 50%;
-    margin-bottom: 1;
+
+    /* margin-top: 5; */
+    width: 100%;
+    margin:1 0;
 }
 
 #start{
@@ -51,16 +109,24 @@ Button {
     
 }
 
-.started {
-    background: #a9a9a9;
 
+#status_label {
+    width: 100%;
+    text-align: center;
+    margin-bottom: 2;
+    color: white;
 }
 
-.started #start {
-    display: none;
-}
+/* Hide these buttons by default */
+#resigned { display: none;}
+#new_game {display: none;}
 
-.started #reset{
-    display: block;
-    
-}
+/* STATE: Playing */
+#main_layout.started #start { display: none; }
+#main_layout.started #new_game { display: none; }
+#main_layout.started #resigned { display: block; }
+
+/* STATE: Game Over */
+#main_layout.game_over #start { display: none; }
+#main_layout.game_over #resigned { display: none; }
+#main_layout.game_over #new_game { display: block; }
