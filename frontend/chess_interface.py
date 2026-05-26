@@ -72,30 +72,13 @@ class CapturedPanel(Static):
         self.title = title
         self.team_color = team_color
     
-    def update_panel(self, board : chess.Board):
-        starting_counts = {
-            chess.PAWN: 8,
-            chess.KNIGHT: 2,
-            chess.BISHOP: 2,
-            chess.ROOK: 2,
-            chess.QUEEN: 1,
-            chess.KING: 1
-        }
-
-        captured_pieces = []
-
-        # compare current board pieces to starting counts
-        for piece_type, start_count in starting_counts.items():
-            current_count = len(board.pieces(piece_type,self.team_color))
-
-            # calculate how many are missing
-            for _ in range(start_count - current_count):
-                captured_pieces.append(chess.Piece(piece_type, self.team_color))
-        
+    def update_panel(self, captured_pieces : list[chess.Piece]):
+        sort_order = {chess.QUEEN: 0, chess.ROOK: 1, chess.BISHOP: 2, chess.KNIGHT: 3, chess.PAWN: 4}
+        sorted_pieces = sorted(captured_pieces, key=lambda p: sort_order.get(p.piece_type, 5))
 
         # Format the defeated pieces with your existing custom colors
         piece_strs = []
-        for piece in captured_pieces:
+        for piece in sorted_pieces:
             piece_color = "#FFFFFF" if piece.color == chess.WHITE else "#000000"
             piece_strs.append(f"[{piece_color}]{piece.unicode_symbol()}[/]")
 
@@ -107,14 +90,18 @@ class CapturedPanel(Static):
         self.update(f"[b]{self.title}[/b]\n\n")
 
 
-class ChessBoard(Grid):
+class ChessBoard(Vertical):
     def __init__(self):
         super().__init__()
         self.board = chess.Board()
         self.selected_square = None
         self.legal_moves = []
         self.player_color = None
-    
+
+        # store captured pieces for both teams
+        self.captured_by_white = []
+        self.captured_by_black = []
+
     def highlight_check(self):
         """find if a king is in check and highlight the square"""
 
@@ -132,14 +119,31 @@ class ChessBoard(Grid):
 
     def apply_move(self,move_uci):
         move = chess.Move.from_uci(move_uci)
+
+        # detect captures before pushing the move
+        captured_piece = None
+
+        # handle the special en passant case
+        if self.board.is_en_passant(move):
+            captured_piece = chess.Piece(chess.PAWN, not self.board.turn)
+        else:
+            captured_piece = self.board.piece_at(move.to_square)
+
+        # add the piece to correct list
+        if captured_piece:
+            if captured_piece.color == chess.WHITE:
+                self.captured_by_black.append(captured_piece)
+            else:
+                self.captured_by_white.append(captured_piece)
+
         self.board.push(move)
         
         for square in self.query(Square):
             square.refresh_piece()
         
         # update captured panels after every move
-        self.app.query_one("#bottom_captured", CapturedPanel).update_panel(self.board)
-        self.app.query_one("#top_captured", CapturedPanel).update_panel(self.board)
+        self.app.query_one("#top_captured", CapturedPanel).update_panel(self.captured_by_black)
+        self.app.query_one("#bottom_captured", CapturedPanel).update_panel(self.captured_by_white)
 
         # check hightlight after every move
         self.highlight_check()
@@ -206,28 +210,41 @@ class ChessBoard(Grid):
         self.legal_moves = []
         self.player_color = None
 
+        self.captured_by_white = []
+        self.captured_by_black = []
+
         for square in self.query(Square):
             square.update_style(None, [])
             square.refresh_piece()
         
-        self.app.query_one("#top_captured", CapturedPanel).update_panel(self.board)
-        self.app.query_one("#bottom_captured", CapturedPanel).update_panel(self.board)
+        self.app.query_one("#top_captured", CapturedPanel).update_panel(self.captured_by_black)
+        self.app.query_one("#bottom_captured", CapturedPanel).update_panel(self.captured_by_white)
 
         self.highlight_check()
     
     def compose(self) -> ComposeResult:
-        for rank in range(7,-1,-1):
-            # alphabets at the bottom and numbers at the right
-            for file in range(8):
-                square = chess.square(file, rank)
-                is_light = (rank + file) % 2 == 0
+
+        # 1. Top Section: the 8x8 board and the 1-8 numbers
+        with Horizontal(id="board_and_ranks"):
+
+            # The bordered 8x8 playing area
+            with Grid(id="inner_board"):
+                for rank in range(7,-1,-1):
+                    for file in range(8):
+                        square = chess.square(file, rank)
+                        is_light = (rank + file) % 2 == 0
+
+                        yield Square(self.board, square, is_light)
                 
-                yield Square(self.board, square, is_light)
-            
-            yield Static(chess.RANK_NAMES[rank], classes = "label")
+            # The numbers 1-8 on the right
+            with Vertical(id="rank_labels"):
+                for rank in range(7,-1,-1):
+                    yield Static(chess.RANK_NAMES[rank], classes = "label")
         
-        for file in range(8):
-            yield Static(chess.FILE_NAMES[file], classes = "label")  
+        # Bottom Section: The letters a-h
+        with Horizontal(id="file_labels"):
+            for file in range(8):
+                yield Static(chess.FILE_NAMES[file], classes = "label")  
             
         
         
