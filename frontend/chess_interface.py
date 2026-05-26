@@ -9,7 +9,7 @@ import chess
 import websockets
 import json
 
-WS_URL = "ws://localhost:8000/ws"
+WS_URL = "wss://suyashk13-terminal-chess-backend.hf.space/ws"
 
 class GameStartedMessage(Message):
     def __init__(self, color : str):
@@ -303,23 +303,34 @@ class ChessApp(App):
         await self.listen()
     
     async def send_init(self):
+        if self.ws is None:
+            self.notify("Still connecting to server. Please wait a moment and try again!", severity="warning")
+            # Revert the UI state since we failed to search for an opponent
+            layout = self.query_one("#main_layout")
+            layout.remove_class("started")
+            self.query_one("#status_label", Static).update("Welcome to Terminal Chess")
+            return
+            
         await self.ws.send(json.dumps({
             "type" : "init_game"
         }))
     
     async def send_move(self, move):
+        if self.ws is None: return
         await self.ws.send(json.dumps({
             "type": "move",
             "move": move.uci()
         }))
     
     async def send_game_over(self, winner):
+        if self.ws is None: return
         await self.ws.send(json.dumps({
             "type": "game_over",
             "winner": winner
         }))
 
     async def send_resign(self):
+        if self.ws is None: return
         await self.ws.send(json.dumps({
             "type" : "resign"
         }))
@@ -389,8 +400,10 @@ class ChessApp(App):
         self.theme = (
             "textual-dark" if self.theme == "textual-light" else "textual-light"
         )
-    
 
-if __name__ == "__main__":
+def run_app():
     app = ChessApp()
     app.run()
+
+if __name__ == "__main__":
+    run_app()
