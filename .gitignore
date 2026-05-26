@@ -8,7 +8,4 @@ wheels/
 
 # Virtual environments
 .venv
-/learn_textual
-something.py
-chess.tcss
-main.py
+
