@@ -12,7 +12,10 @@ async def websocket_endpoint(websocket: WebSocket):
         await game_manager.add_user(websocket)
     except WebSocketDisconnect:
         await game_manager.remove_user(websocket)
-    
+
+@app.get("/")
+async def root():
+    return {"message": "Welcome to the Chess Game WebSocket API!"}
 
 
 
