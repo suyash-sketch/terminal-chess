@@ -35,7 +35,7 @@ class GameManager:
             if message["type"] == messages.INIT_GAME:
                 if self.pendingUser is None:
                     self.pendingUser = websocket
-                elif self.pendingUser != websocket:
+                elif self.pendingUser != websocket: # make sure the pending user is not the same as the current user
                     game = Game(self.pendingUser, websocket)
                     await game.start()
                     self.games.append(game)
@@ -46,15 +46,21 @@ class GameManager:
                 print(game)
                 if game:
                     print("inside make move")
-                    await game.make_move(websocket, message["move"])
+                    # Capture the return value of make_move
+                    is_game_over = await game.make_move(websocket, message["move"])
+
+                    # if make_move returns True, it means the game is over and we should remove it from the list of games
+                    if is_game_over:
+                        self.games.remove(game)
+                        print("Checkmate! Game safely removed from memory.")
                 
-            if message["type"] == messages.GAME_OVER:
-                print("reached game over")
-                game = self.find_game(websocket)
-                if game:
-                    self.games.remove(game)
-                    print("game removed")
-                    print(message)
+            # if message["type"] == messages.GAME_OVER:
+            #     print("reached game over")
+            #     game = self.find_game(websocket)
+            #     if game:
+            #         self.games.remove(game)
+            #         print("game removed")
+            #         print(message)
                 
             if message["type"] == messages.RESIGN:
                 print("reached resign")

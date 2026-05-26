@@ -84,8 +84,8 @@ class Game:
             await self.player1.send_json(message)
             await self.player2.send_json(message)
 
-            return
-
+            return True
+        
         #if the game is not over then update and tell the next player to move
         print("Next Turn:", "white" if self.board.turn else "black")
         #white player sends move to black player
