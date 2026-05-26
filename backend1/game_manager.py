@@ -33,15 +33,13 @@ class GameManager:
             message = await websocket.receive_json()
             print("new move\n ", message)
             if message["type"] == messages.INIT_GAME:
-                if self.pendingUser is not None:  # if a users exists
-                    # start a game
+                if self.pendingUser is None:
+                    self.pendingUser = websocket
+                elif self.pendingUser != websocket:
                     game = Game(self.pendingUser, websocket)
                     await game.start()
                     self.games.append(game)
-                    self.users.append(self.pendingUser)
                     self.pendingUser = None
-                else:
-                    self.pendingUser = websocket
         
             if message["type"] == messages.MOVE:
                 game = self.find_game(websocket)
@@ -57,6 +55,14 @@ class GameManager:
                     self.games.remove(game)
                     print("game removed")
                     print(message)
+                
+            if message["type"] == messages.RESIGN:
+                print("reached resign")
+                game = self.find_game(websocket)
+                if game:
+                    await game.handle_resign(websocket)
+                    self.games.remove(game)
+                    print("game resigned")
 
     def find_game(self, websocket: WebSocket):
         for game in self.games:

@@ -113,3 +113,20 @@ class Game:
         # })
 
         # send the updated board to both players
+
+
+    # resign logic
+    async def handle_resign(self, websocket: WebSocket):
+        if websocket == self.player1:
+            winner = "black"
+        else:
+            winner = "white"
+        
+        message = {
+            "type" : messages.GAME_OVER,
+            "winner" : winner,
+            "reason" : "resignation"
+        }
+        print(f"{message}\n")
+        await self.player1.send_json(message)
+        await self.player2.send_json(message)
