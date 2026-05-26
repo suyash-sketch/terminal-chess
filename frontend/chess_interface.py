@@ -295,7 +295,11 @@ class ChessApp(App):
         self.ws = None
     
     async def connect_ws(self):
-        self.ws = await websockets.connect(WS_URL)
+        self.ws = await websockets.connect(
+            WS_URL,
+            ping_interval=20,
+            ping_timeout=20,
+            )
         await self.listen()
     
     async def send_init(self):
