@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "terminal-chess"
+name = "termy-chess"
 version = "0.1.0"
 description = "A multiplayer terminal-based chess game built with FastAPI and Textual."
 readme = "README.md"
@@ -19,6 +19,9 @@ dependencies = [
 # This creates the command. When users type 'terminal-chess', 
 # it runs the 'run_app' function inside 'chess_interface.py'
 terminal-chess = "frontend.chess_interface:run_app"
+
+[tool.setuptools]
+packages = ["frontend"]
 
 [tool.setuptools.package-data]
 # This is required so Python includes your CSS file in the download
