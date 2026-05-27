@@ -148,6 +148,41 @@ class ChessBoard(Vertical):
         # check hightlight after every move
         self.highlight_check()
 
+    def flipping_board(self):
+        squares = list(self.query(Square))
+        rank_labels = list(self.query("#rank_labels Static"))
+        file_labels = list(self.query("#file_labels Static"))
+
+        if self.player_color == "black":
+
+            rank_iter = range(8)
+            file_iter = range(7, -1, -1)
+
+            #flip coordinate labels
+            for i, r in enumerate(range(8)):
+                rank_labels[i].update(chess.RANK_NAMES[r])
+            for i, f in enumerate(range(7,-1,-1)):
+                file_labels[i].update(chess.FILE_NAMES[f])
+        else:
+            rank_iter = range(7, -1, -1)
+            file_iter = range(8)
+
+            #reset coordinate back to normal
+            for i, r in enumerate(range(7,-1,-1)):
+                rank_labels[i].update(chess.RANK_NAMES[r])
+            for i, f in enumerate(range(8)):
+                file_labels[i].update(chess.FILE_NAMES[f])
+        
+        # reassign the internal square_index for all 64 UI blocks
+        dom_idx = 0
+        for rank in rank_iter:
+            for file in file_iter:
+                squares[dom_idx].square_index = chess.square(file, rank)
+                squares[dom_idx].refresh_piece()
+                dom_idx +=1
+
+    
+
     def on_square_clicked(self, message : Square.Clicked):
         square = message.square_index
         
@@ -217,6 +252,8 @@ class ChessBoard(Vertical):
             square.update_style(None, [])
             square.refresh_piece()
         
+        self.flipping_board()
+
         self.app.query_one("#top_captured", CapturedPanel).update_panel(self.captured_by_black)
         self.app.query_one("#bottom_captured", CapturedPanel).update_panel(self.captured_by_white)
 
@@ -365,6 +402,9 @@ class ChessApp(App):
     def on_game_start(self, event : GameStartedMessage):
         status = self.query_one("#status_label", Static)
         status.update(f"Game Started!, You are playing [b]{event.color}[/b]")
+
+        board = self.query_one(ChessBoard)
+        board.flipping_board()
 
     @on(GameOverMessage)
     def on_game_over(self, event : GameOverMessage):
