@@ -8,4 +8,7 @@ app_port: 7860
 pinned: false
 ---
 
-# Terminal Chess 
+# Terminal Chess
+<p align="center" >
+    <img src="assets/game_play.gif" width="80%">
+</p>
