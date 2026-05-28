@@ -133,6 +133,31 @@ class ChessBoard(Vertical):
                 if square.square_index == from_square or square.square_index == to_square:
                     square.add_class("-last-move")
 
+    def update_captured_panels(self):
+        """Routes the correct titles and captured pieces to the correct captured panels based on team color"""
+        try:
+            top_panel = self.app.query_one("#top_captured", CapturedPanel)
+            bottom_panel = self.app.query_one("#bottom_captured", CapturedPanel)
+        except Exception:
+            return
+        
+        if self.player_color == "black":
+            # Opponent is White (Top), Player is Black (Bottom)
+            top_panel.title = "Captured by White"
+            bottom_panel.title = "Captured by Black"
+
+            #re-render panels with correct titles and pieces
+            top_panel.update_panel(self.captured_by_white)
+            bottom_panel.update_panel(self.captured_by_black)
+        else:
+            # Opponent is Black (Top), Player is White (Bottom)
+            top_panel.title = "Captured by Black"
+            bottom_panel.title = "Captured by White"
+
+            #re-render panels with correct titles and pieces
+            top_panel.update_panel(self.captured_by_black)
+            bottom_panel.update_panel(self.captured_by_white)
+
     def apply_move(self,move_uci):
         move = chess.Move.from_uci(move_uci)
 
@@ -158,8 +183,7 @@ class ChessBoard(Vertical):
             square.refresh_piece()
         
         # update captured panels after every move
-        self.app.query_one("#top_captured", CapturedPanel).update_panel(self.captured_by_black)
-        self.app.query_one("#bottom_captured", CapturedPanel).update_panel(self.captured_by_white)
+        self.update_captured_panels()
 
         # check highlight after every move
         self.highlight_check()
@@ -199,7 +223,7 @@ class ChessBoard(Vertical):
                 squares[dom_idx].refresh_piece()
                 dom_idx +=1
 
-    
+        self.update_captured_panels()
 
     def on_square_clicked(self, message : Square.Clicked):
         square = message.square_index
@@ -272,8 +296,7 @@ class ChessBoard(Vertical):
         
         self.flipping_board()
 
-        self.app.query_one("#top_captured", CapturedPanel).update_panel(self.captured_by_black)
-        self.app.query_one("#bottom_captured", CapturedPanel).update_panel(self.captured_by_white)
+        self.update_captured_panels()
 
         self.highlight_check()
         self.highlight_last_move()
