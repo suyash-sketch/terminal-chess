@@ -117,6 +117,22 @@ class ChessBoard(Vertical):
                 if square.square_index == king_square:
                     square.add_class("-in-check")
 
+    def highlight_last_move(self):
+        """Highlight the from and to squares of the last move"""
+
+        # clear previous highlights
+        for square in self.query(Square):
+            square.remove_class("-last-move")
+        
+        if self.board.move_stack:
+            last_move = self.board.peek()
+            from_square = last_move.from_square
+            to_square = last_move.to_square
+
+            for square in self.query(Square):
+                if square.square_index == from_square or square.square_index == to_square:
+                    square.add_class("-last-move")
+
     def apply_move(self,move_uci):
         move = chess.Move.from_uci(move_uci)
 
@@ -145,8 +161,10 @@ class ChessBoard(Vertical):
         self.app.query_one("#top_captured", CapturedPanel).update_panel(self.captured_by_black)
         self.app.query_one("#bottom_captured", CapturedPanel).update_panel(self.captured_by_white)
 
-        # check hightlight after every move
+        # check highlight after every move
         self.highlight_check()
+        # last move highlight after every move
+        self.highlight_last_move()
 
     def flipping_board(self):
         squares = list(self.query(Square))
@@ -258,6 +276,7 @@ class ChessBoard(Vertical):
         self.app.query_one("#bottom_captured", CapturedPanel).update_panel(self.captured_by_white)
 
         self.highlight_check()
+        self.highlight_last_move()
     
     def compose(self) -> ComposeResult:
 

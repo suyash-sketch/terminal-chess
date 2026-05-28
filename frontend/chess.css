@@ -130,6 +130,10 @@ Square.-in-check {
     background: #ffcccc; /* Optional: adds a faint red tint to the background too! */
 }
 
+Square.-last-move {
+    border: heavy cyan;
+}
+
 .label {
     width: 7;
     height: 3;
