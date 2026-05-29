@@ -2,18 +2,21 @@ from fastapi import WebSocket
 import time
 import chess
 import messages
-
+from typing import Optional
 class Game:
+    game_id : Optional[str] = None
     player1 : WebSocket
     player2 : WebSocket
     board : chess.Board
     start_time : time.time
 
-    def __init__(self, player1 : WebSocket, player2 : WebSocket):
+    def __init__(self, player1 : WebSocket, player2 : WebSocket, game_id : Optional[str] = None):
+        self.game_id = game_id
         self.player1 = player1
         self.player2 = player2
         self.board = chess.Board()
         self.start_time = time.time()
+
     
     async def start(self):
         await self.player1.send_json({
@@ -102,18 +105,6 @@ class Game:
                 "type" : messages.MOVE,
                 "move" : move_obj.uci()
             })
-
-        # await self.player1.send_json({
-        #     "type" : messages.MOVE,
-        #     "move" : move_obj.uci()
-        # })
-        # await self.player2.send_json({
-        #     "type" : messages.MOVE,
-        #     "move" : move_obj.uci()
-        # })
-
-        # send the updated board to both players
-
 
     # resign logic
     async def handle_resign(self, websocket: WebSocket):

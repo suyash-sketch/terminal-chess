@@ -1,18 +1,21 @@
 from fastapi import WebSocket
-
+from typing import Dict
 from game import Game
 import messages
-
+import random
+import string
 
 class GameManager:
     games: list[Game]
     pendingUser: WebSocket | None
     users: list[WebSocket]
+    private_room_players : Dict[str,WebSocket]
 
     def __init__(self):
         self.games = []
         self.pendingUser = None
         self.users = []
+        self.private_room_players = {}
 
     async def add_user(self, websocket: WebSocket):
         await websocket.accept()
@@ -28,10 +31,33 @@ class GameManager:
                 if game.player1 == websocket or game.player2 == websocket:
                     self.games.remove(game)
 
+        for game_id, player in self.private_room_players.items():
+            if player == websocket:
+                room_to_delete = game_id
+                break
+        del self.private_room_players[room_to_delete]
+
     async def add_handler(self, websocket: WebSocket):
         while True:
             message = await websocket.receive_json()
             print("new move\n ", message)
+
+            if message["type"] == messages.ROOM:
+                if message.get("game_id") is None:
+                    game_id = self.generate_game_id()
+                    print("game_id:",game_id)
+                    self.private_room_players[game_id] = websocket
+                    await websocket.send_json({
+                        "type" : "room",
+                        "game_id" : game_id
+                    })
+                else:
+                    friend = self.private_room_players.get(message["game_id"])
+                    if friend:
+                        game = Game(websocket, friend)
+                        await game.start()
+                        self.games.append(game)
+
             if message["type"] == messages.INIT_GAME:
                 if self.pendingUser is None:
                     self.pendingUser = websocket
@@ -54,14 +80,6 @@ class GameManager:
                         self.games.remove(game)
                         print("Checkmate! Game safely removed from memory.")
                 
-            # if message["type"] == messages.GAME_OVER:
-            #     print("reached game over")
-            #     game = self.find_game(websocket)
-            #     if game:
-            #         self.games.remove(game)
-            #         print("game removed")
-            #         print(message)
-                
             if message["type"] == messages.RESIGN:
                 print("reached resign")
                 game = self.find_game(websocket)
@@ -74,3 +92,8 @@ class GameManager:
         for game in self.games:
             if game.player1 == websocket or game.player2 == websocket:
                 return game
+    
+    def generate_game_id(self):
+        letters = string.ascii_letters
+        length = 6
+        return "".join(random.sample(letters,length))
